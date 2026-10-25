@@ -164,31 +164,52 @@ classDiagram
 
 ## Respuesta a la Pregunta de Sustentacion
 
-### Enunciado
-Si en un futuro se necesita agregar un nuevo tipo de evento, por ejemplo `ObraDeTeatro`, que tenga un recargo del 8% sobre el precio base:
-1. ¿Que clases se modificarian y cuales no?
-2. Explica como el diseno aplicado (especialmente el polimorfismo y el principio abierto/cerrado OCP) facilita esta extension sin romper el codigo existente.
+### Pregunta
+**¿Por qué utilizaste una clase abstracta `Evento` en lugar de crear clases completamente independientes para Cine, Concierto y Taller? ¿Qué ventajas tiene esta decisión cuando necesitamos agregar un nuevo tipo de evento?**
 
-### Respuesta Tecnica
-Gracias a la aplicacion rigurosa de los conceptos de POO y del Principio Abierto/Cerrado (OCP - Open/Closed Principle), el sistema esta abierto para su extension pero cerrado para su modificacion:
+### Justificacion Tecnica con Ejemplos del Codigo
 
-1. **Clases que NO se modificarian**:
-   * `Evento`: La clase base no requiere alteracion alguna, ya que su contrato (`CalcularPrecioFinal()`) ya contempla que cada subtipo calcule su valor.
-   * `Cine`, `Concierto`, `Taller`, `EventoDeportivo`: Las clases derivadas existentes permanecen intactas.
-   * `Reserva`: No sufre ningun cambio. La clase `Reserva` interactua exclusivamente con la abstraccion `Evento` y desconoce la existencia de subtipos especificos. Al calcular el costo total (`CantidadEntradas * EventoReservado.CalcularPrecioFinal()`), la llamada se despacha polimorficamente en tiempo de ejecucion.
-   * `Usuario`: Permanece completamente desacoplada de la tipologia de eventos.
-   * `GestorReservas` (logica de negocio de reservas): Los metodos `RegistrarReserva`, `CancelarReserva` y `ObtenerResumen` no contienen ninguna estructura condicional acoplada a tipos de eventos.
+1. **Evitar la duplicacion de codigo y unificar el estado comun:**
+Si hubieramos creado clases independientes, cada una habria tenido que repetir exactamente los mismos atributos (`Id`, `Nombre`, `Fecha`, `PrecioBase`, `CapacidadMaxima`, `CuposDisponibles`) y los mismos metodos de validacion de inventario (`HayCupo`, `DescontarCupos`, `DevolverCupos`). Al centralizarlos en la clase base abstracta `Evento`:
+```csharp
+public abstract class Evento
+{
+    public int CuposDisponibles { get; private set; }
+    public void DescontarCupos(int cantidad) { ... }
+    public void DevolverCupos(int cantidad) { ... }
+    public abstract decimal CalcularPrecioFinal();
+}
+```
+Cualquier logica de control de cupos queda resuelta en un unico lugar, garantizando consistencia.
 
-2. **Clase que se crearia**:
-   * Unicamente se crearia una nueva clase `ObraDeTeatro` en la carpeta `Modelos/`, heredando de `Evento` y sobrescribiendo sus dos metodos abstractos:
-     * `CalcularPrecioFinal()`: Retornando `PrecioBase * 1.08m`.
-     * `ObtenerTipo()`: Retornando `"Obra de Teatro"`.
+2. **Polimorfismo y Desacoplamiento (Principio Abierto/Cerrado - OCP):**
+Al existir la abstraccion `Evento`, las demas partes del sistema (como `Reserva` y `GestorReservas`) interactuan con la interfaz comun de `Evento` y no con clases concretas. Por ejemplo, en `Reserva.cs`:
+```csharp
+public decimal ValorTotal => CantidadEntradas * EventoReservado.CalcularPrecioFinal();
+```
+`Reserva` no necesita saber si el evento es un `Cine`, un `Concierto` o un `Taller`, ni ejecutar condicionales como `if (tipo == "Concierto")`. El metodo `CalcularPrecioFinal()` se resuelve dinamicamente en tiempo de ejecucion segun la instancia concreta.
 
-3. **Punto de instanciacion**:
-   * El unico punto donde se referenciaria la nueva clase es en el registro o inicializacion de instancias del catalogo (por ejemplo en `InicializarDatosPrueba()` o cuando se agregue la funcion de registrar nuevos eventos por consola).
+3. **Manejo en Colecciones Homogeneas:**
+En `GestorReservas.cs`, podemos almacenar todos los espectaculos en una sola lista:
+```csharp
+private readonly List<Evento> _eventos;
+```
+Si fueran clases independientes, habria sido necesario mantener `List<Cine>`, `List<Concierto>`, `List<Taller>`, triplicando los metodos de busqueda, reserva y cancelacion.
 
-4. **Conclusion del diseno**:
-   * El polimorfismo dinamico elimina por completo la necesidad de mantener bloques `switch` o cadenas de `if-else` basadas en nombres o categorias. Cualquier nueva modalidad de evento se acopla inmediatamente al ecosistema sin generar efectos secundarios ni riesgo de regresiones en las funcionalidades ya probadas.
+4. **Ventajas al agregar un nuevo tipo de evento (ejemplo: `EventoDeportivo` u `ObraDeTeatro`):**
+Cuando se agrego el reto de `EventoDeportivo`:
+* No se modifico ni una sola linea de `Evento.cs`.
+* No se modifico la clase `Reserva.cs`.
+* No se modifico la logica de venta ni cancelacion en `GestorReservas.cs`.
+Unicamente se creo la clase derivada implementando `CalcularPrecioFinal()`:
+```csharp
+public class EventoDeportivo : Evento
+{
+    public override decimal CalcularPrecioFinal() => PrecioBase * 1.05m;
+    public override string ObtenerTipo() => "Evento Deportivo";
+}
+```
+El sistema quedo extendido sin alterar el codigo existente, cumpliendo al 100% con el Principio Abierto/Cerrado.
 
 ## Evidencias de Pruebas y Funcionamiento
 
